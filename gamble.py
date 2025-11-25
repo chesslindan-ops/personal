@@ -323,6 +323,55 @@ async def blackjack(interaction: discord.Interaction, amount: int):
     await update_balance(user.id, -amount)
     view = BJView(user, amount)
     await interaction.response.send_message("🃏 Blackjack:", view=view)
+# ---------------- BALANCE COMMAND ----------------
+@tree.command(name="bal", description="Check your balance")
+async def bal(interaction: discord.Interaction):
+    user = interaction.user
+    balance = await get_balance(user.id)
+    await interaction.response.send_message(f"💰 **{user.display_name}**, your balance is **{balance}** coins.")
+
+# ---------------- GIFT COMMAND ----------------
+@tree.command(name="gift", description="Gift coins to another user")
+@app_commands.describe(user="The user to gift coins to", amount="Amount to gift")
+async def gift(interaction: discord.Interaction, user: discord.User, amount: int):
+    giver = interaction.user
+    if giver.id == user.id:
+        return await interaction.response.send_message("You can't gift coins to yourself.", ephemeral=True)
+    
+    giver_bal = await get_balance(giver.id)
+    if amount <= 0:
+        return await interaction.response.send_message("Enter a valid amount.", ephemeral=True)
+    if amount > giver_bal:
+        return await interaction.response.send_message("You don't have enough balance to gift that much.", ephemeral=True)
+    
+    # Subtract from giver and add to recipient
+    await update_balance(giver.id, -amount)
+    await update_balance(user.id, amount)
+    
+    await interaction.response.send_message(f"🎁 **{giver.display_name}** gifted **{amount}** coins to **{user.display_name}**!")
+# ---------------- OWNER-ONLY BALANCE COMMANDS ----------------
+def is_owner():
+    async def predicate(interaction: discord.Interaction) -> bool:
+        return interaction.user.id == YOUR_USER_ID  # replace with your Discord ID
+    return app_commands.check(predicate)
+
+@tree.command(name="add", description="Add coins to a user's balance (owner only)")
+@is_owner()
+@app_commands.describe(user="The user to add coins to", amount="Amount to add")
+async def add(interaction: discord.Interaction, user: discord.User, amount: int):
+    if amount <= 0:
+        return await interaction.response.send_message("Enter a valid positive amount.", ephemeral=True)
+    new_bal = await update_balance(user.id, amount)
+    await interaction.response.send_message(f"✅ Added **{amount}** coins to **{user.display_name}**. New balance: **{new_bal}**.")
+
+@tree.command(name="rem", description="Remove coins from a user's balance (owner only)")
+@is_owner()
+@app_commands.describe(user="The user to remove coins from", amount="Amount to remove")
+async def rem(interaction: discord.Interaction, user: discord.User, amount: int):
+    if amount <= 0:
+        return await interaction.response.send_message("Enter a valid positive amount.", ephemeral=True)
+    new_bal = await update_balance(user.id, -amount)
+    await interaction.response.send_message(f"✅ Removed **{amount}** coins from **{user.display_name}**. New balance: **{new_bal}**.")
 # ---------------- BOT READY ----------------
 @bot.event
 async def on_ready():
