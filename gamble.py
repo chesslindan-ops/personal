@@ -206,53 +206,37 @@ async def mines(interaction: discord.Interaction, amount: int):
     await interaction.response.send_message("💎 Mines Game 5x5! Avoid the bombs and click safely.", view=view)
 
 # ---------------- BLACKJACK ----------------
-# ---------------- BLACKJACK ----------------
+# ---------- Blackjack (fixed initial display + edits) ----------
 def draw_card():
     ranks = ["A","2","3","4","5","6","7","8","9","10","J","Q","K"]
     suits = ["♠","♥","♦","♣"]
     return random.choice(ranks) + random.choice(suits)
 
 def hand_value(cards):
-    value = 0
-    aces = 0
+    val, aces = 0, 0
     for c in cards:
         rank = c[:-1]
         if rank in ["J","Q","K"]:
-            value += 10
+            val += 10
         elif rank == "A":
-            value += 11
-            aces += 1
+            val += 11; aces += 1
         else:
-            value += int(rank)
-    while value > 21 and aces:
-        value -= 10
-        aces -= 1
-    return value
+            val += int(rank)
+    while val > 21 and aces:
+        val -= 10; aces -= 1
+    return val
 
 class BJView(discord.ui.View):
     def __init__(self, user, wager):
-        super().__init__(timeout=60)
+        # keep the view alive until you explicitly stop it
+        super().__init__(timeout=None)
         self.user = user
         self.wager = wager
         self.player = [draw_card(), draw_card()]
         self.dealer = [draw_card(), draw_card()]
         self.game_over = False
-
-        self.hit_button = BJHit()
-        self.stand_button = BJStand()
-        self.add_item(self.hit_button)
-        self.add_item(self.stand_button)
-
-    async def render(self, interaction, final=False):
-        player_val = hand_value(self.player)
-        dealer_val = hand_value(self.dealer)
-
-        if final:
-            content = f"Your cards: {self.player} = **{player_val}**\nDealer: {self.dealer} = **{dealer_val}**"
-        else:
-            content = f"Your cards: {self.player} = **{player_val}**\nDealer shows: {self.dealer[0]}"
-
-        await interaction.response.edit_message(content=content, view=self)
+        self.add_item(BJHit())
+        self.add_item(BJStand())
 
 class BJHit(discord.ui.Button):
     def __init__(self):
@@ -262,21 +246,28 @@ class BJHit(discord.ui.Button):
         view: BJView = self.view
         if interaction.user.id != view.user.id:
             return await interaction.response.send_message("Not your game.", ephemeral=True)
-        if view.game_over: return
+        if view.game_over:
+            return await interaction.response.send_message("This game has ended.", ephemeral=True)
 
+        # draw for player
         view.player.append(draw_card())
-        player_val = hand_value(view.player)
+        p_val = hand_value(view.player)
 
-        if player_val > 21:
+        if p_val > 21:
             view.game_over = True
             for child in view.children: child.disabled = True
-            await interaction.response.edit_message(
-                content=f"Your cards: {view.player} = **{player_val}**\nBusted! Lost **{view.wager}**.",
+            # edit the original message (not using interaction.response.edit_message)
+            await interaction.message.edit(
+                content=f"Your cards: {view.player} = **{p_val}**\n💥 Busted! You lost **{view.wager}**.",
                 view=view
             )
             return
 
-        await view.render(interaction)
+        # update message to show current hand (dealer still shows only one card)
+        await interaction.message.edit(
+            content=f"Your cards: {view.player} = **{p_val}**\nDealer shows: {view.dealer[0]}",
+            view=view
+        )
 
 class BJStand(discord.ui.Button):
     def __init__(self):
@@ -286,10 +277,11 @@ class BJStand(discord.ui.Button):
         view: BJView = self.view
         if interaction.user.id != view.user.id:
             return await interaction.response.send_message("Not your game.", ephemeral=True)
-        if view.game_over: return
+        if view.game_over:
+            return await interaction.response.send_message("This game has ended.", ephemeral=True)
 
         view.game_over = True
-        # Dealer draws until 17+
+        # dealer draws to 17+
         while hand_value(view.dealer) < 17:
             view.dealer.append(draw_card())
 
@@ -298,22 +290,26 @@ class BJStand(discord.ui.Button):
 
         for child in view.children: child.disabled = True
 
-        if d_val > 21 or p_val > d_val:
+        if p_val > 21:
+            result = f"💥 Busted! Lost **{view.wager}**."
+        elif d_val > 21 or p_val > d_val:
             winnings = view.wager * 2
             await update_balance(view.user.id, winnings)
-            result_msg = f"You win **{winnings}**!"
+            result = f"🎉 You win **{winnings}**!"
         elif p_val == d_val:
             await update_balance(view.user.id, view.wager)
-            result_msg = "Push. Wager refunded."
+            result = "🤝 Push. Wager refunded."
         else:
-            result_msg = f"You lost **{view.wager}**."
+            result = f"💀 You lost **{view.wager}**."
 
-        await interaction.response.edit_message(
-            content=f"Your cards: {view.player} ({p_val})\nDealer: {view.dealer} ({d_val})\n{result_msg}",
+        await interaction.message.edit(
+            content=(f"Your cards: {view.player} = **{p_val}**\n"
+                     f"Dealer's cards: {view.dealer} = **{d_val}**\n"
+                     f"{result}"),
             view=view
         )
 
-@tree.command(name="blackjack", description="Play Blackjack against the dealer")
+@tree.command(name="blackjack", description="Play Blackjack vs dealer")
 async def blackjack(interaction: discord.Interaction, amount: int):
     user = interaction.user
     bal = await get_balance(user.id)
@@ -322,7 +318,10 @@ async def blackjack(interaction: discord.Interaction, amount: int):
 
     await update_balance(user.id, -amount)
     view = BJView(user, amount)
-    await interaction.response.send_message("🃏 Blackjack:", view=view)
+
+    # Send initial message that _shows the player's cards immediately_
+    initial_content = f"Your cards: {view.player} = **{hand_value(view.player)}**\nDealer shows: {view.dealer[0]}"
+    await interaction.response.send_message(content=initial_content, view=view)
 # ---------------- BALANCE COMMAND ----------------
 @tree.command(name="bal", description="Check your balance")
 async def bal(interaction: discord.Interaction):
