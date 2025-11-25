@@ -352,7 +352,7 @@ async def gift(interaction: discord.Interaction, user: discord.User, amount: int
 # ---------------- OWNER-ONLY BALANCE COMMANDS ----------------
 def is_owner():
     async def predicate(interaction: discord.Interaction) -> bool:
-        return interaction.user.id == YOUR_USER_ID  # replace with your Discord ID
+        return interaction.user.id == 1329161792936476683  # replace with your Discord ID
     return app_commands.check(predicate)
 
 @tree.command(name="add", description="Add coins to a user's balance (owner only)")
