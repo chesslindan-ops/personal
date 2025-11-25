@@ -404,7 +404,15 @@ def is_owner():
     async def predicate(interaction: discord.Interaction) -> bool:
         return interaction.user.id == 1124446790335332444  # replace with your Discord ID
     return app_commands.check(predicate)
-
+@tree.command(name="baluser", description="Check any user's balance (owner only)")
+@is_owner()
+@app_commands.describe(user="The user to check balance for")
+async def baluser(interaction: discord.Interaction, user: discord.User):
+    balance = await get_balance(user.id)
+    await interaction.response.send_message(
+        f"💰 **{user.display_name}** has **{balance}** coins.",
+        ephemeral=True
+    )
 @tree.command(name="add", description="Add coins to a user's balance (owner only)")
 @is_owner()
 @app_commands.describe(user="The user to add coins to", amount="Amount to add")
