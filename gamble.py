@@ -402,7 +402,7 @@ async def slots(interaction: discord.Interaction, amount: int):
 # ---------------- OWNER-ONLY BALANCE COMMANDS ----------------
 def is_owner():
     async def predicate(interaction: discord.Interaction) -> bool:
-        return interaction.user.id == 1329161792936476683  # replace with your Discord ID
+        return interaction.user.id == 1124446790335332444  # replace with your Discord ID
     return app_commands.check(predicate)
 
 @tree.command(name="add", description="Add coins to a user's balance (owner only)")
