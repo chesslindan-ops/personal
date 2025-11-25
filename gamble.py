@@ -349,6 +349,44 @@ async def gift(interaction: discord.Interaction, user: discord.User, amount: int
     await update_balance(user.id, amount)
     
     await interaction.response.send_message(f"🎁 **{giver.display_name}** gifted **{amount}** coins to **{user.display_name}**!")
+import random
+import discord
+from discord import app_commands
+
+@tree.command(name="slots", description="Play the slots!")
+@app_commands.describe(amount="Amount to wager")
+async def slots(interaction: discord.Interaction, amount: int):
+    user = interaction.user
+    bal = await get_balance(user.id)
+
+    if amount <= 0:
+        return await interaction.response.send_message("Wager must be greater than 0.", ephemeral=True)
+    if amount > bal:
+        return await interaction.response.send_message("You don't have enough balance.", ephemeral=True)
+
+    await update_balance(user.id, -amount)  # subtract wager first
+
+    emojis = ["🍒", "🍋", "🍊", "🍉", "⭐", "7️⃣"]
+    roll = [random.choice(emojis) for _ in range(3)]
+
+    # Determine win multiplier
+    if roll.count(roll[0]) == 3:
+        multiplier = 5  # jackpot
+        result_text = "🎉 JACKPOT! All 3 match!"
+    elif any(roll.count(e) == 2 for e in roll):
+        multiplier = 2
+        result_text = "✅ 2 match! You win double!"
+    else:
+        multiplier = 0
+        result_text = "❌ No match. You lost."
+
+    winnings = amount * multiplier
+    if winnings > 0:
+        await update_balance(user.id, winnings)
+
+    await interaction.response.send_message(
+        f"🎰 | {' | '.join(roll)}\n{result_text}\nWinnings: **{winnings}**"
+    )
 # ---------------- OWNER-ONLY BALANCE COMMANDS ----------------
 def is_owner():
     async def predicate(interaction: discord.Interaction) -> bool:
