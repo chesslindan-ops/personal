@@ -185,9 +185,9 @@ class MinesView(discord.ui.View):
         self.revealed = 0
 
         # 5x5 grid -> 25 cells, 10 bombs
-        self.board = ["bomb"] * 10 + ["safe"] * 15
+        self.board = ["bomb"] * 5 + ["safe"] * 20
         random.shuffle(self.board)
-        self.safe_count = 15
+        self.safe_count = 20
 
         for i in range(25):
             self.add_item(MinesButton(i))
