@@ -350,10 +350,12 @@ async def gift(interaction: discord.Interaction, user: discord.User, amount: int
     
     await interaction.response.send_message(f"🎁 **{giver.display_name}** gifted **{amount}** coins to **{user.display_name}**!")
 import random
+import random
+import asyncio
 import discord
 from discord import app_commands
 
-@tree.command(name="slots", description="Play the slots!")
+@tree.command(name="slots", description="Play interactive slots!")
 @app_commands.describe(amount="Amount to wager")
 async def slots(interaction: discord.Interaction, amount: int):
     user = interaction.user
@@ -364,14 +366,23 @@ async def slots(interaction: discord.Interaction, amount: int):
     if amount > bal:
         return await interaction.response.send_message("You don't have enough balance.", ephemeral=True)
 
-    await update_balance(user.id, -amount)  # subtract wager first
+    await update_balance(user.id, -amount)  # deduct upfront
 
     emojis = ["🍒", "🍋", "🍊", "🍉", "⭐", "7️⃣"]
     roll = [random.choice(emojis) for _ in range(3)]
+    display = ["❔", "❔", "❔"]  # start with empty slots
 
-    # Determine win multiplier
+    msg = await interaction.response.send_message(f"🎰 | {' | '.join(display)}")
+
+    # reveal each reel progressively
+    for i in range(3):
+        await asyncio.sleep(1)  # 1 second delay for animation
+        display[i] = roll[i]
+        await interaction.edit_original_response(content=f"🎰 | {' | '.join(display)}")
+
+    # determine result
     if roll.count(roll[0]) == 3:
-        multiplier = 5  # jackpot
+        multiplier = 5
         result_text = "🎉 JACKPOT! All 3 match!"
     elif any(roll.count(e) == 2 for e in roll):
         multiplier = 2
@@ -384,8 +395,9 @@ async def slots(interaction: discord.Interaction, amount: int):
     if winnings > 0:
         await update_balance(user.id, winnings)
 
-    await interaction.response.send_message(
-        f"🎰 | {' | '.join(roll)}\n{result_text}\nWinnings: **{winnings}**"
+    await asyncio.sleep(0.5)
+    await interaction.edit_original_response(
+        content=f"🎰 | {' | '.join(display)}\n{result_text}\nWinnings: **{winnings}**"
     )
 # ---------------- OWNER-ONLY BALANCE COMMANDS ----------------
 def is_owner():
